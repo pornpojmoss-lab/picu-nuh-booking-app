@@ -22,11 +22,12 @@ main{min-height:100vh;display:flex;align-items:center;justify-content:center;pad
 h1{margin:0;color:#083b73;font-size:28px}
 h2{margin:6px 0 20px;color:#0b7f91;font-size:17px}
 p{color:#60788d;line-height:1.6;font-size:14px}
-.open,.install,.notify{display:block;width:100%;border-radius:15px;padding:15px;font-size:17px;font-weight:800;text-decoration:none}
+.open,.install,.notify,.copytoken{display:block;width:100%;border-radius:15px;padding:15px;font-size:17px;font-weight:800;text-decoration:none}
 .open{background:linear-gradient(90deg,#0b8c9a,#0b5fa5);color:white;box-shadow:0 8px 20px rgba(11,95,165,.20)}
 .notify{margin-top:11px;border:0;background:#eaf6ff;color:#0b5fa5;cursor:pointer}
 .notify:disabled{opacity:.65;cursor:default}
 .install{margin-top:11px;border:1px solid #cbddea;background:#f6fbff;color:#0b5fa5;cursor:pointer}
+.copytoken{margin-top:11px;border:1px solid #b8d9c9;background:#f1fbf6;color:#087f5b;cursor:pointer}
 .status{margin-top:12px;min-height:20px;color:#60788d;font-size:13px;word-break:break-word}
 .status.ok{color:#087f5b;font-weight:700}
 .status.err{color:#b42318;font-weight:700}
@@ -45,6 +46,7 @@ p{color:#60788d;line-height:1.6;font-size:14px}
 
 <button class="notify" id="notifyBtn" type="button">🔔 เปิดการแจ้งเตือน PICU</button>
 <div class="status" id="notifyStatus"></div>
+<button class="copytoken" id="copyTokenBtn" type="button" hidden>📋 คัดลอก Device Token</button>
 
 <button class="install" id="installBtn" hidden>INSTALL APP</button>
 <div class="note">For authorized hospital users</div>
@@ -56,7 +58,7 @@ p{color:#60788d;line-height:1.6;font-size:14px}
 
 <script>
 const firebaseConfig = {
-  apiKey: "AIzaSyC-j08I700S-ITpy8ei0fDEZCM-i0wyLnw",
+  apiKey: "AIzaSyC-j08I700s-ITpy8ei0fDEZCM-i0wyLnw",
   authDomain: "picu-book.firebaseapp.com",
   projectId: "picu-book",
   storageBucket: "picu-book.firebasestorage.app",
@@ -75,6 +77,8 @@ let swRegistration = null;
 const installBtn = document.getElementById("installBtn");
 const notifyBtn = document.getElementById("notifyBtn");
 const notifyStatus = document.getElementById("notifyStatus");
+const copyTokenBtn = document.getElementById("copyTokenBtn");
+let currentFcmToken = "";
 
 function setNotifyStatus(message, type) {
   notifyStatus.textContent = message || "";
@@ -145,6 +149,8 @@ notifyBtn.addEventListener("click", async () => {
       2) ค่อยเพิ่ม backend สำหรับบันทึก token และส่ง Push
     */
     console.log("PICU FCM TOKEN:", token);
+    currentFcmToken = token;
+    copyTokenBtn.hidden = false;
 
     notifyBtn.textContent = "✅ เปิดการแจ้งเตือนแล้ว";
     setNotifyStatus("เปิดการแจ้งเตือนสำเร็จ — อุปกรณ์นี้สร้าง FCM token ได้แล้ว", "ok");
@@ -154,6 +160,39 @@ notifyBtn.addEventListener("click", async () => {
     setNotifyStatus(err.message || String(err), "err");
   } finally {
     notifyBtn.disabled = false;
+  }
+});
+
+
+copyTokenBtn.addEventListener("click", async () => {
+  if (!currentFcmToken) {
+    setNotifyStatus("ยังไม่มี Device Token กรุณากดเปิด/ตรวจสอบการแจ้งเตือนก่อน", "err");
+    return;
+  }
+
+  try {
+    await navigator.clipboard.writeText(currentFcmToken);
+    copyTokenBtn.textContent = "✅ คัดลอก Token แล้ว";
+    setNotifyStatus("คัดลอก Device Token แล้ว — นำไปวางใน Script Property: FCM_DEVICE_TOKEN", "ok");
+  } catch (err) {
+    // fallback สำหรับบาง browser
+    const area = document.createElement("textarea");
+    area.value = currentFcmToken;
+    area.style.position = "fixed";
+    area.style.opacity = "0";
+    document.body.appendChild(area);
+    area.focus();
+    area.select();
+    const ok = document.execCommand("copy");
+    document.body.removeChild(area);
+
+    if (!ok) {
+      setNotifyStatus("คัดลอกอัตโนมัติไม่ได้ กรุณาลองเปิดหน้านี้ใน Chrome", "err");
+      return;
+    }
+
+    copyTokenBtn.textContent = "✅ คัดลอก Token แล้ว";
+    setNotifyStatus("คัดลอก Device Token แล้ว — นำไปวางใน Script Property: FCM_DEVICE_TOKEN", "ok");
   }
 });
 
