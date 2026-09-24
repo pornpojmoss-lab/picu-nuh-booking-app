@@ -22,9 +22,14 @@ main{min-height:100vh;display:flex;align-items:center;justify-content:center;pad
 h1{margin:0;color:#083b73;font-size:28px}
 h2{margin:6px 0 20px;color:#0b7f91;font-size:17px}
 p{color:#60788d;line-height:1.6;font-size:14px}
-.open,.install{display:block;width:100%;border-radius:15px;padding:15px;font-size:17px;font-weight:800;text-decoration:none}
+.open,.install,.notify{display:block;width:100%;border-radius:15px;padding:15px;font-size:17px;font-weight:800;text-decoration:none}
 .open{background:linear-gradient(90deg,#0b8c9a,#0b5fa5);color:white;box-shadow:0 8px 20px rgba(11,95,165,.20)}
+.notify{margin-top:11px;border:0;background:#eaf6ff;color:#0b5fa5;cursor:pointer}
+.notify:disabled{opacity:.65;cursor:default}
 .install{margin-top:11px;border:1px solid #cbddea;background:#f6fbff;color:#0b5fa5;cursor:pointer}
+.status{margin-top:12px;min-height:20px;color:#60788d;font-size:13px;word-break:break-word}
+.status.ok{color:#087f5b;font-weight:700}
+.status.err{color:#b42318;font-weight:700}
 .note{margin-top:18px;color:#8094a5;font-size:12px}
 </style>
 </head>
@@ -35,22 +40,122 @@ p{color:#60788d;line-height:1.6;font-size:14px}
 <h1>PICU NUH Booking</h1>
 <h2>Naresuan University Hospital</h2>
 <p>ระบบจองย้ายผู้ป่วยเข้า PICU</p>
+
 <a class="open" href="https://script.google.com/macros/s/AKfycbwOUdVRJDwg1tKx79skIqVFCwtmpomCNlF-BsuG5yYsdQnwUR0CgLjuTHhkW8Uspsfw/exec">OPEN PICU NUH</a>
+
+<button class="notify" id="notifyBtn" type="button">🔔 เปิดการแจ้งเตือน PICU</button>
+<div class="status" id="notifyStatus"></div>
+
 <button class="install" id="installBtn" hidden>INSTALL APP</button>
 <div class="note">For authorized hospital users</div>
 </section>
 </main>
-<script>
-let deferredPrompt = null;
-const installBtn = document.getElementById("installBtn");
 
-if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("./sw.js", {scope:"./"})
-      .then(() => console.log("PICU NUH PWA service worker ready"))
-      .catch(err => console.error("PWA service worker error", err));
-  });
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-messaging-compat.js"></script>
+
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyC-j08I700s-ITpy8ei0fDEZCM-i0wyLnw",
+  authDomain: "picu-book.firebaseapp.com",
+  projectId: "picu-book",
+  storageBucket: "picu-book.firebasestorage.app",
+  messagingSenderId: "99258359831",
+  appId: "1:99258359831:web:3817b4b060e5db95967c52"
+};
+
+const VAPID_KEY = "BBimMUnY0ng-wuj1PJ4iRdkprhwkgmpvlURoLcL9V4BqG6Fj-dh4GIHvdrSToCqFxKdgrP6KdjCQazMRvTpWcmE";
+
+firebase.initializeApp(firebaseConfig);
+const messaging = firebase.messaging();
+
+let deferredPrompt = null;
+let swRegistration = null;
+
+const installBtn = document.getElementById("installBtn");
+const notifyBtn = document.getElementById("notifyBtn");
+const notifyStatus = document.getElementById("notifyStatus");
+
+function setNotifyStatus(message, type) {
+  notifyStatus.textContent = message || "";
+  notifyStatus.className = "status" + (type ? " " + type : "");
 }
+
+async function registerServiceWorker() {
+  if (!("serviceWorker" in navigator)) {
+    throw new Error("อุปกรณ์นี้ไม่รองรับ Service Worker");
+  }
+
+  swRegistration = await navigator.serviceWorker.register("./sw.js", {scope:"./"});
+  await navigator.serviceWorker.ready;
+  return swRegistration;
+}
+
+window.addEventListener("load", async () => {
+  try {
+    await registerServiceWorker();
+    console.log("PICU NUH PWA service worker ready");
+
+    if (Notification.permission === "granted") {
+      notifyBtn.textContent = "🔔 ตรวจสอบการแจ้งเตือน";
+      setNotifyStatus("อนุญาตการแจ้งเตือนแล้ว", "ok");
+    }
+  } catch (err) {
+    console.error("PWA service worker error", err);
+    setNotifyStatus("Service Worker ไม่พร้อม: " + err.message, "err");
+  }
+});
+
+notifyBtn.addEventListener("click", async () => {
+  notifyBtn.disabled = true;
+  setNotifyStatus("กำลังเปิดการแจ้งเตือน...");
+
+  try {
+    if (!("Notification" in window)) {
+      throw new Error("เบราว์เซอร์นี้ไม่รองรับ Notification");
+    }
+
+    if (!swRegistration) {
+      await registerServiceWorker();
+    }
+
+    const permission = await Notification.requestPermission();
+
+    if (permission !== "granted") {
+      throw new Error(
+        permission === "denied"
+          ? "การแจ้งเตือนถูกปฏิเสธ กรุณาเปิดสิทธิ์ Notification ในการตั้งค่าเบราว์เซอร์/แอป"
+          : "ยังไม่ได้อนุญาตการแจ้งเตือน"
+      );
+    }
+
+    const token = await messaging.getToken({
+      vapidKey: VAPID_KEY,
+      serviceWorkerRegistration: swRegistration
+    });
+
+    if (!token) {
+      throw new Error("Firebase ยังไม่สามารถสร้าง FCM token ได้");
+    }
+
+    /*
+      ขั้นนี้ยังไม่ส่ง token ไป Google Apps Script
+      เพื่อแยกการทดสอบเป็น 2 ระยะ:
+      1) มือถือสร้าง FCM token ได้
+      2) ค่อยเพิ่ม backend สำหรับบันทึก token และส่ง Push
+    */
+    console.log("PICU FCM TOKEN:", token);
+
+    notifyBtn.textContent = "✅ เปิดการแจ้งเตือนแล้ว";
+    setNotifyStatus("เปิดการแจ้งเตือนสำเร็จ — อุปกรณ์นี้สร้าง FCM token ได้แล้ว", "ok");
+
+  } catch (err) {
+    console.error("FCM setup error", err);
+    setNotifyStatus(err.message || String(err), "err");
+  } finally {
+    notifyBtn.disabled = false;
+  }
+});
 
 window.addEventListener("beforeinstallprompt", (event) => {
   event.preventDefault();
