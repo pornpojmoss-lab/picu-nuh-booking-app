@@ -31,7 +31,7 @@ p{color:#60788d;line-height:1.6;font-size:14px}
 .status{margin-top:12px;min-height:20px;color:#60788d;font-size:13px;word-break:break-word}
 .status.ok{color:#087f5b;font-weight:700}
 .status.err{color:#b42318;font-weight:700}
-.note{margin-top:18px;color:#8094a5;font-size:12px}
+.device-fields{margin:14px 0 6px;text-align:left}.device-fields input{width:100%;box-sizing:border-box;margin:6px 0;padding:12px;border:1px solid #cbd5e1;border-radius:10px;font-size:16px}.device-fields label{display:block;margin-top:8px;font-size:13px;font-weight:700;color:#52697a}.note{margin-top:18px;color:#8094a5;font-size:12px}
 </style>
 </head>
 <body>
@@ -44,9 +44,17 @@ p{color:#60788d;line-height:1.6;font-size:14px}
 
 <a class="open" href="https://script.google.com/macros/s/AKfycbwOUdVRJDwg1tKx79skIqVFCwtmpomCNlF-BsuG5yYsdQnwUR0CgLjuTHhkW8Uspsfw/exec">OPEN PICU NUH</a>
 
-<button class="notify" id="notifyBtn" type="button">🔔 เปิดการแจ้งเตือน PICU</button>
+<div class="device-fields">
+<label for="picuUsername">PICU Username</label>
+<input id="picuUsername" autocomplete="username" placeholder="Username บัญชี PICU">
+<label for="picuPassword">Password</label>
+<input id="picuPassword" type="password" autocomplete="current-password" placeholder="Password">
+<label for="deviceName">ชื่อเครื่อง (ไม่บังคับ)</label>
+<input id="deviceName" placeholder="เช่น S23 Ultra PICU 1">
+</div>
+<button class="notify" id="notifyBtn" type="button">🔔 เปิดและลงทะเบียนการแจ้งเตือน PICU</button>
 <div class="status" id="notifyStatus"></div>
-<button class="copytoken" id="copyTokenBtn" type="button" hidden>📋 คัดลอก Device Token</button>
+<iframe name="fcmRegisterFrame" id="fcmRegisterFrame" hidden></iframe>
 
 <button class="install" id="installBtn" hidden>INSTALL APP</button>
 <div class="note">For authorized hospital users</div>
@@ -78,7 +86,6 @@ let currentFcmToken = "";
 const installBtn = document.getElementById("installBtn");
 const notifyBtn = document.getElementById("notifyBtn");
 const notifyStatus = document.getElementById("notifyStatus");
-const copyTokenBtn = document.getElementById("copyTokenBtn");
 
 function setNotifyStatus(message, type) {
   notifyStatus.textContent = message || "";
@@ -118,6 +125,45 @@ window.addEventListener("load", () => {
     });
 });
 
+function registerTokenWithPicuSystem(token) {
+  const username = document.getElementById("picuUsername").value.trim();
+  const password = document.getElementById("picuPassword").value;
+  const deviceName = document.getElementById("deviceName").value.trim() || navigator.userAgent;
+
+  if (!username || !password) {
+    throw new Error("กรุณากรอก PICU Username และ Password ก่อนเปิดการแจ้งเตือน");
+  }
+
+  const form = document.createElement("form");
+  form.method = "POST";
+  form.action = "https://script.google.com/macros/s/AKfycbwOUdVRJDwg1tKx79skIqVFCwtmpomCNlF-BsuG5yYsdQnwUR0CgLjuTHhkW8Uspsfw/exec";
+  form.target = "fcmRegisterFrame";
+  form.style.display = "none";
+
+  const fields = {
+    action: "registerFcmDevice",
+    username: username,
+    password: password,
+    deviceToken: token,
+    deviceName: deviceName
+  };
+
+  Object.keys(fields).forEach(key => {
+    const input = document.createElement("input");
+    input.type = "hidden";
+    input.name = key;
+    input.value = fields[key];
+    form.appendChild(input);
+  });
+
+  document.body.appendChild(form);
+  form.submit();
+  setTimeout(() => form.remove(), 1500);
+
+  // ไม่เก็บรหัสผ่านไว้ในหน้าเว็บหลังส่งลงทะเบียน
+  document.getElementById("picuPassword").value = "";
+}
+
 notifyBtn.addEventListener("click", async () => {
   notifyBtn.disabled = true;
   setNotifyStatus("กำลังเปิดการแจ้งเตือน...");
@@ -149,11 +195,11 @@ notifyBtn.addEventListener("click", async () => {
     }
 
     currentFcmToken = token;
-    console.log("PICU FCM TOKEN:", token);
+    console.log("PICU FCM TOKEN created");
 
-    copyTokenBtn.hidden = false;
-    notifyBtn.textContent = "✅ เปิดการแจ้งเตือนแล้ว";
-    setNotifyStatus("เปิดการแจ้งเตือนสำเร็จ — Device Token พร้อมแล้ว", "ok");
+    registerTokenWithPicuSystem(token);
+    notifyBtn.textContent = "✅ ลงทะเบียนการแจ้งเตือนแล้ว";
+    setNotifyStatus("ลงทะเบียนอุปกรณ์แล้ว — เครื่องนี้จะรับแจ้งเตือนคำขอ PICU", "ok");
 
   } catch (err) {
     console.error("FCM setup error", err);
@@ -161,31 +207,6 @@ notifyBtn.addEventListener("click", async () => {
   } finally {
     notifyBtn.disabled = false;
   }
-});
-
-copyTokenBtn.addEventListener("click", async () => {
-  if (!currentFcmToken) {
-    setNotifyStatus("ยังไม่มี Device Token กรุณากดเปิด/ตรวจสอบการแจ้งเตือนก่อน", "err");
-    return;
-  }
-
-  try {
-    await navigator.clipboard.writeText(currentFcmToken);
-  } catch (err) {
-    const area = document.createElement("textarea");
-    area.value = currentFcmToken;
-    area.style.position = "fixed";
-    area.style.opacity = "0";
-    document.body.appendChild(area);
-    area.focus();
-    area.select();
-    const ok = document.execCommand("copy");
-    document.body.removeChild(area);
-    if (!ok) throw new Error("คัดลอกอัตโนมัติไม่ได้");
-  }
-
-  copyTokenBtn.textContent = "✅ คัดลอก Token แล้ว";
-  setNotifyStatus("คัดลอก Device Token แล้ว — นำไปวางใน Script Property: FCM_DEVICE_TOKEN", "ok");
 });
 
 window.addEventListener("beforeinstallprompt", event => {
