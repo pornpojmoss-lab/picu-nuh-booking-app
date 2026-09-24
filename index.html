@@ -13,199 +13,68 @@
 <link rel="apple-touch-icon" href="./icons/icon-192.png">
 <title>PICU NUH Booking</title>
 <style>
-*{box-sizing:border-box}
-html,body{margin:0;min-height:100%;background:#f4f9fd}
+*{box-sizing:border-box} html,body{margin:0;min-height:100%;background:#f4f9fd}
 body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:#17324d}
 main{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
 .card{width:min(440px,100%);background:#fff;border-radius:28px;padding:30px 24px;box-shadow:0 18px 50px rgba(15,72,110,.14);text-align:center;border:1px solid #e2edf5}
 .logo{width:160px;height:160px;object-fit:contain;display:block;margin:0 auto 14px}
-h1{margin:0;color:#083b73;font-size:28px}
-h2{margin:6px 0 20px;color:#0b7f91;font-size:17px}
+h1{margin:0;color:#083b73;font-size:28px} h2{margin:6px 0 20px;color:#0b7f91;font-size:17px}
 p{color:#60788d;line-height:1.6;font-size:14px}
-.open,.install,.notify,.copytoken{display:block;width:100%;border-radius:15px;padding:15px;font-size:17px;font-weight:800;text-decoration:none}
+.open,.install,.notify{display:block;width:100%;border-radius:15px;padding:15px;font-size:17px;font-weight:800;text-decoration:none}
 .open{background:linear-gradient(90deg,#0b8c9a,#0b5fa5);color:white;box-shadow:0 8px 20px rgba(11,95,165,.20)}
 .notify{margin-top:11px;border:0;background:#eaf6ff;color:#0b5fa5;cursor:pointer}
-.notify:disabled{opacity:.65;cursor:default}
-.install{margin-top:11px;border:1px solid #cbddea;background:#f6fbff;color:#0b5fa5;cursor:pointer}
-.copytoken{margin-top:11px;border:1px solid #b8d9c9;background:#f1fbf6;color:#087f5b;cursor:pointer}
+.notify:disabled{opacity:.65}.install{margin-top:11px;border:1px solid #cbddea;background:#f6fbff;color:#0b5fa5;cursor:pointer}
+.fields{text-align:left;margin:14px 0 4px}.fields label{display:block;margin-top:8px;font-size:13px;font-weight:700;color:#52697a}
+.fields input{width:100%;margin-top:5px;padding:12px;border:1px solid #cbd5e1;border-radius:10px;font-size:16px}
 .status{margin-top:12px;min-height:20px;color:#60788d;font-size:13px;word-break:break-word}
-.status.ok{color:#087f5b;font-weight:700}
-.status.err{color:#b42318;font-weight:700}
-.note{margin-top:18px;color:#8094a5;font-size:12px}
-</style>
-</head>
-<body>
-<main>
-<section class="card">
+.status.ok{color:#087f5b;font-weight:700}.status.err{color:#b42318;font-weight:700}.note{margin-top:18px;color:#8094a5;font-size:12px}
+</style></head>
+<body><main><section class="card">
 <img class="logo" src="./icons/icon-512.png" alt="PICU NUH Booking">
-<h1>PICU NUH Booking</h1>
-<h2>Naresuan University Hospital</h2>
-<p>ระบบจองย้ายผู้ป่วยเข้า PICU</p>
-
+<h1>PICU NUH Booking</h1><h2>Naresuan University Hospital</h2><p>ระบบจองย้ายผู้ป่วยเข้า PICU</p>
 <a class="open" href="https://script.google.com/macros/s/AKfycbwOUdVRJDwg1tKx79skIqVFCwtmpomCNlF-BsuG5yYsdQnwUR0CgLjuTHhkW8Uspsfw/exec">OPEN PICU NUH</a>
-
-<button class="notify" id="notifyBtn" type="button">🔔 เปิดการแจ้งเตือน PICU</button>
-<div class="status" id="notifyStatus"></div>
-<button class="copytoken" id="copyTokenBtn" type="button" hidden>📋 คัดลอก Device Token</button>
-
+<div class="fields">
+<label>PICU Username</label><input id="u" autocomplete="username" placeholder="เช่น picu01">
+<label>Password</label><input id="p" type="password" autocomplete="current-password" placeholder="Password">
+<label>ชื่อเครื่อง</label><input id="d" placeholder="เช่น S23 Ultra PICU 1">
+</div>
+<button class="notify" id="notifyBtn" type="button">🔔 เปิดและลงทะเบียนการแจ้งเตือน PICU</button>
+<div class="status" id="status"></div>
 <button class="install" id="installBtn" hidden>INSTALL APP</button>
 <div class="note">For authorized hospital users</div>
-</section>
-</main>
-
+</section></main>
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-messaging-compat.js"></script>
-
 <script>
-const firebaseConfig = {
-  apiKey: "AIzaSyC-j08I700S-ITpy8ei0fDEZCM-i0wyLnw",
-  authDomain: "picu-book.firebaseapp.com",
-  projectId: "picu-book",
-  storageBucket: "picu-book.firebasestorage.app",
-  messagingSenderId: "99258359831",
-  appId: "1:99258359831:web:3817b4b060e5db95967c52"
-};
-
-const VAPID_KEY = "BBimMUnY0ng-wuj1PJ4iRdkprhwkgmpvlURoLcL9V4BqG6Fj-dh4GIHvdrSToCqFxKdgrP6KdjCQazMRvTpWcmE";
-
-firebase.initializeApp(firebaseConfig);
-const messaging = firebase.messaging();
-
-let deferredPrompt = null;
-let swRegistration = null;
-let currentFcmToken = "";
-
-const installBtn = document.getElementById("installBtn");
-const notifyBtn = document.getElementById("notifyBtn");
-const notifyStatus = document.getElementById("notifyStatus");
-const copyTokenBtn = document.getElementById("copyTokenBtn");
-
-function setNotifyStatus(message, type) {
-  notifyStatus.textContent = message || "";
-  notifyStatus.className = "status" + (type ? " " + type : "");
+const firebaseConfig={apiKey:"AIzaSyC-j08I700S-ITpy8ei0fDEZCM-i0wyLnw",authDomain:"picu-book.firebaseapp.com",projectId:"picu-book",storageBucket:"picu-book.firebasestorage.app",messagingSenderId:"99258359831",appId:"1:99258359831:web:3817b4b060e5db95967c52"};
+const VAPID_KEY="BBimMUnY0ng-wuj1PJ4iRdkprhwkgmpvlURoLcL9V4BqG6Fj-dh4GIHvdrSToCqFxKdgrP6KdjCQazMRvTpWcmE";
+const SCRIPT_URL="https://script.google.com/macros/s/AKfycbwOUdVRJDwg1tKx79skIqVFCwtmpomCNlF-BsuG5yYsdQnwUR0CgLjuTHhkW8Uspsfw/exec";
+firebase.initializeApp(firebaseConfig); const messaging=firebase.messaging();
+let deferredPrompt=null;
+const btn=document.getElementById("notifyBtn"), statusEl=document.getElementById("status"), installBtn=document.getElementById("installBtn");
+function status(t,c){statusEl.textContent=t;statusEl.className="status "+(c||"")}
+async function sw(){let r=await navigator.serviceWorker.getRegistration("./");if(!r)r=await navigator.serviceWorker.register("./sw.js",{scope:"./"});await navigator.serviceWorker.ready;return r}
+function postRegistration(token){
+  const u=document.getElementById("u").value.trim(),p=document.getElementById("p").value,d=document.getElementById("d").value.trim()||navigator.userAgent;
+  if(!u||!p)throw new Error("กรุณากรอก PICU Username และ Password");
+  const f=document.createElement("form"); f.method="POST";f.action=SCRIPT_URL;f.target="regFrame";f.style.display="none";
+  ({action:"registerFcmDevice",username:u,password:p,deviceToken:token,deviceName:d});
+  const data={action:"registerFcmDevice",username:u,password:p,deviceToken:token,deviceName:d};
+  Object.keys(data).forEach(k=>{const i=document.createElement("input");i.type="hidden";i.name=k;i.value=data[k];f.appendChild(i)});
+  document.body.appendChild(f);f.submit();setTimeout(()=>f.remove(),1500);document.getElementById("p").value="";
 }
-
-/* ใช้ Service Worker registration เดิมก่อนเสมอ
-   และ register ใหม่เฉพาะเมื่อยังไม่มีจริง ๆ */
-async function getServiceWorkerRegistration() {
-  if (!("serviceWorker" in navigator)) {
-    throw new Error("อุปกรณ์นี้ไม่รองรับ Service Worker");
-  }
-
-  let reg = await navigator.serviceWorker.getRegistration("./");
-
-  if (!reg) {
-    reg = await navigator.serviceWorker.register("./sw.js", { scope: "./" });
-  }
-
-  await navigator.serviceWorker.ready;
-  swRegistration = reg;
-  return reg;
-}
-
-/* เตรียม SW หลังหน้าเว็บโหลดเสร็จ แต่ไม่ให้ error นี้ขวางปุ่มแจ้งเตือน */
-window.addEventListener("load", () => {
-  getServiceWorkerRegistration()
-    .then(() => {
-      console.log("PICU NUH PWA service worker ready");
-      if (Notification.permission === "granted") {
-        notifyBtn.textContent = "🔔 ตรวจสอบการแจ้งเตือน";
-        setNotifyStatus("อนุญาตการแจ้งเตือนแล้ว — กดตรวจสอบเพื่อสร้าง Device Token", "ok");
-      }
-    })
-    .catch(err => {
-      console.error("PWA service worker preparation error", err);
-    });
+const fr=document.createElement("iframe");fr.name="regFrame";fr.hidden=true;document.body.appendChild(fr);
+window.addEventListener("load",()=>sw().catch(console.error));
+btn.addEventListener("click",async()=>{
+  btn.disabled=true;status("กำลังลงทะเบียน...");
+  try{
+    if(!document.getElementById("u").value.trim()||!document.getElementById("p").value)throw new Error("กรุณากรอก PICU Username และ Password");
+    const permission=await Notification.requestPermission();if(permission!=="granted")throw new Error("ยังไม่ได้อนุญาตการแจ้งเตือน");
+    const reg=await sw();const token=await messaging.getToken({vapidKey:VAPID_KEY,serviceWorkerRegistration:reg});
+    if(!token)throw new Error("Firebase ยังไม่สามารถสร้าง FCM token ได้");
+    postRegistration(token);btn.textContent="✅ ส่งลงทะเบียนแล้ว";status("ส่ง Token ของเครื่องนี้เข้าสู่ระบบแล้ว","ok");
+  }catch(e){status(e.message||String(e),"err")}finally{btn.disabled=false}
 });
-
-notifyBtn.addEventListener("click", async () => {
-  notifyBtn.disabled = true;
-  setNotifyStatus("กำลังเปิดการแจ้งเตือน...");
-
-  try {
-    if (!("Notification" in window)) {
-      throw new Error("เบราว์เซอร์นี้ไม่รองรับ Notification");
-    }
-
-    const permission = await Notification.requestPermission();
-
-    if (permission !== "granted") {
-      throw new Error(
-        permission === "denied"
-          ? "การแจ้งเตือนถูกปฏิเสธ กรุณาเปิดสิทธิ์ Notification ในการตั้งค่าเบราว์เซอร์/แอป"
-          : "ยังไม่ได้อนุญาตการแจ้งเตือน"
-      );
-    }
-
-    const reg = await getServiceWorkerRegistration();
-
-    const token = await messaging.getToken({
-      vapidKey: VAPID_KEY,
-      serviceWorkerRegistration: reg
-    });
-
-    if (!token) {
-      throw new Error("Firebase ยังไม่สามารถสร้าง FCM token ได้");
-    }
-
-    currentFcmToken = token;
-    console.log("PICU FCM TOKEN:", token);
-
-    copyTokenBtn.hidden = false;
-    notifyBtn.textContent = "✅ เปิดการแจ้งเตือนแล้ว";
-    setNotifyStatus("เปิดการแจ้งเตือนสำเร็จ — Device Token พร้อมแล้ว", "ok");
-
-  } catch (err) {
-    console.error("FCM setup error", err);
-    setNotifyStatus(err.message || String(err), "err");
-  } finally {
-    notifyBtn.disabled = false;
-  }
-});
-
-copyTokenBtn.addEventListener("click", async () => {
-  if (!currentFcmToken) {
-    setNotifyStatus("ยังไม่มี Device Token กรุณากดเปิด/ตรวจสอบการแจ้งเตือนก่อน", "err");
-    return;
-  }
-
-  try {
-    await navigator.clipboard.writeText(currentFcmToken);
-  } catch (err) {
-    const area = document.createElement("textarea");
-    area.value = currentFcmToken;
-    area.style.position = "fixed";
-    area.style.opacity = "0";
-    document.body.appendChild(area);
-    area.focus();
-    area.select();
-    const ok = document.execCommand("copy");
-    document.body.removeChild(area);
-    if (!ok) throw new Error("คัดลอกอัตโนมัติไม่ได้");
-  }
-
-  copyTokenBtn.textContent = "✅ คัดลอก Token แล้ว";
-  setNotifyStatus("คัดลอก Device Token แล้ว — นำไปวางใน Script Property: FCM_DEVICE_TOKEN", "ok");
-});
-
-window.addEventListener("beforeinstallprompt", event => {
-  event.preventDefault();
-  deferredPrompt = event;
-  installBtn.hidden = false;
-});
-
-installBtn.addEventListener("click", async () => {
-  if (!deferredPrompt) return;
-  deferredPrompt.prompt();
-  await deferredPrompt.userChoice;
-  deferredPrompt = null;
-  installBtn.hidden = true;
-});
-
-window.addEventListener("appinstalled", () => {
-  installBtn.hidden = true;
-  deferredPrompt = null;
-});
-</script>
-</body>
-</html>
+window.addEventListener("beforeinstallprompt",e=>{e.preventDefault();deferredPrompt=e;installBtn.hidden=false});
+installBtn.addEventListener("click",async()=>{if(!deferredPrompt)return;deferredPrompt.prompt();await deferredPrompt.userChoice;deferredPrompt=null;installBtn.hidden=true});
+</script></body></html>
