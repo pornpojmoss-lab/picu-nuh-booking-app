@@ -1,9 +1,7 @@
-const CACHE_NAME = "picu-nuh-booking-v3";
+const CACHE_NAME = "picu-nuh-booking-v4";
 const BASE = "/picu-nuh-booking-app/";
 
 const SHELL = [
-  BASE,
-  BASE + "index.html",
   BASE + "manifest.webmanifest",
   BASE + "icons/icon-192.png",
   BASE + "icons/icon-512.png"
@@ -36,6 +34,24 @@ self.addEventListener("fetch", event => {
     url.origin === self.location.origin &&
     url.pathname.startsWith(BASE)
   ) {
+    // index.html ใช้ network ก่อน ป้องกันหน้าเก่าค้างใน cache
+    if (
+      url.pathname === BASE ||
+      url.pathname === BASE + "index.html"
+    ) {
+      event.respondWith(
+        fetch(request)
+          .then(response => {
+            const copy = response.clone();
+            caches.open(CACHE_NAME)
+              .then(cache => cache.put(request, copy));
+            return response;
+          })
+          .catch(() => caches.match(request))
+      );
+      return;
+    }
+
     event.respondWith(
       caches.match(request).then(cached => {
         return cached || fetch(request).then(response => {
@@ -49,18 +65,9 @@ self.addEventListener("fetch", event => {
   }
 });
 
-
-/* =====================================================
-   FIREBASE CLOUD MESSAGING
-===================================================== */
-
-importScripts(
-  "https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"
-);
-
-importScripts(
-  "https://www.gstatic.com/firebasejs/10.13.2/firebase-messaging-compat.js"
-);
+/* FIREBASE CLOUD MESSAGING */
+importScripts("https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js");
+importScripts("https://www.gstatic.com/firebasejs/10.13.2/firebase-messaging-compat.js");
 
 firebase.initializeApp({
   apiKey: "AIzaSyC-j08I700S-ITpy8ei0fDEZCM-i0wyLnw",
@@ -73,13 +80,7 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
-
-/* =====================================================
-   เมื่อได้รับ Push ขณะ PWA อยู่ Background / ปิดอยู่
-===================================================== */
-
 messaging.onBackgroundMessage(payload => {
-
   const title =
     payload.notification?.title ||
     "PICU NUH";
@@ -88,48 +89,28 @@ messaging.onBackgroundMessage(payload => {
     body:
       payload.notification?.body ||
       "มีคำขอย้ายผู้ป่วยเข้า PICU ใหม่",
-
-    icon:
-      BASE + "icons/icon-192.png",
-
-    badge:
-      BASE + "icons/icon-192.png",
-
+    icon: BASE + "icons/icon-192.png",
+    badge: BASE + "icons/icon-192.png",
     tag: "picu-transfer-request",
-
-    data: {
-      url: BASE
-    }
+    data: { url: BASE }
   };
 
-  return self.registration.showNotification(
-    title,
-    options
-  );
+  return self.registration.showNotification(title, options);
 });
 
+self.addEventListener("notificationclick", event => {
+  event.notification.close();
 
-/* =====================================================
-   กด Notification → เปิด PICU NUH Booking
-===================================================== */
+  const targetUrl = self.location.origin + BASE;
 
-self.addEventListener(
-  "notificationclick",
-  event => {
-
-    event.notification.close();
-
-    const targetUrl =
-      self.location.origin + BASE;
-
-    event.waitUntil(
-      clients.matchAll({
+  event.waitUntil(
+    clients
+      .matchAll({
         type: "window",
         includeUncontrolled: true
-      }).then(windowClients => {
-
+      })
+      .then(windowClients => {
         for (const client of windowClients) {
-
           if (
             client.url.startsWith(targetUrl) &&
             "focus" in client
@@ -142,6 +123,5 @@ self.addEventListener(
           return clients.openWindow(targetUrl);
         }
       })
-    );
-  }
-);
+  );
+});
