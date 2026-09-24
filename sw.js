@@ -1,5 +1,5 @@
 const CACHE_NAME = "picu-nuh-booking-v2";
-const BASE = "/picu-nuh-booking/";
+const BASE = "/picu-nuh-booking-app/";
 const SHELL = [
   BASE,
   BASE + "index.html",
