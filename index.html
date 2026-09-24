@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b5fa5">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="PICU NUH">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png">
+<link rel="apple-touch-icon" href="./icons/icon-192.png">
+<title>PICU NUH Booking</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;background:#f4f9fd}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:#17324d}
+main{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+.card{width:min(440px,100%);background:#fff;border-radius:28px;padding:30px 24px;box-shadow:0 18px 50px rgba(15,72,110,.14);text-align:center;border:1px solid #e2edf5}
+.logo{width:160px;height:160px;object-fit:contain;display:block;margin:0 auto 14px}
+h1{margin:0;color:#083b73;font-size:28px}
+h2{margin:6px 0 20px;color:#0b7f91;font-size:17px}
+p{color:#60788d;line-height:1.6;font-size:14px}
+.open,.install{display:block;width:100%;border-radius:15px;padding:15px;font-size:17px;font-weight:800;text-decoration:none}
+.open{background:linear-gradient(90deg,#0b8c9a,#0b5fa5);color:white;box-shadow:0 8px 20px rgba(11,95,165,.20)}
+.install{margin-top:11px;border:1px solid #cbddea;background:#f6fbff;color:#0b5fa5;cursor:pointer}
+.note{margin-top:18px;color:#8094a5;font-size:12px}
+</style>
+</head>
+<body>
+<main>
+<section class="card">
+<img class="logo" src="./icons/icon-512.png" alt="PICU NUH Booking">
+<h1>PICU NUH Booking</h1>
+<h2>Naresuan University Hospital</h2>
+<p>ระบบจองย้ายผู้ป่วยเข้า PICU</p>
+<a class="open" href="https://script.google.com/macros/s/AKfycbwOUdVRJDwg1tKx79skIqVFCwtmpomCNlF-BsuG5yYsdQnwUR0CgLjuTHhkW8Uspsfw/exec">OPEN PICU NUH</a>
+<button class="install" id="installBtn" hidden>INSTALL APP</button>
+<div class="note">For authorized hospital users</div>
+</section>
+</main>
+<script>
+let deferredPrompt = null;
+const installBtn = document.getElementById("installBtn");
+
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./sw.js", {scope:"./"})
+      .then(() => console.log("PICU NUH PWA service worker ready"))
+      .catch(err => console.error("PWA service worker error", err));
+  });
+}
+
+window.addEventListener("beforeinstallprompt", (event) => {
+  event.preventDefault();
+  deferredPrompt = event;
+  installBtn.hidden = false;
+});
+
+installBtn.addEventListener("click", async () => {
+  if (!deferredPrompt) return;
+  deferredPrompt.prompt();
+  await deferredPrompt.userChoice;
+  deferredPrompt = null;
+  installBtn.hidden = true;
+});
+
+window.addEventListener("appinstalled", () => {
+  installBtn.hidden = true;
+  deferredPrompt = null;
+});
+</script>
+</body>
+</html>

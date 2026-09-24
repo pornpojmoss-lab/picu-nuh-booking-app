@@ -1,0 +1,33 @@
+{
+  "id": "/picu-nuh-booking/",
+  "name": "PICU NUH Booking",
+  "short_name": "PICU NUH",
+  "description": "PICU NUH Booking — Naresuan University Hospital",
+  "lang": "en",
+  "dir": "ltr",
+  "start_url": "/picu-nuh-booking/?source=pwa",
+  "scope": "/picu-nuh-booking/",
+  "display": "standalone",
+  "display_override": [
+    "window-controls-overlay",
+    "standalone"
+  ],
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#0b5fa5",
+  "prefer_related_applications": false,
+  "icons": [
+    {
+      "src": "/picu-nuh-booking/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/picu-nuh-booking/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
