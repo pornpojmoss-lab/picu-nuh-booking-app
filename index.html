@@ -58,7 +58,7 @@ p{color:#60788d;line-height:1.6;font-size:14px}
 
 <script>
 const firebaseConfig = {
-  apiKey: "AIzaSyC-j08I700s-ITpy8ei0fDEZCM-i0wyLnw",
+  apiKey: "AIzaSyC-j08I700S-ITpy8ei0fDEZCM-i0wyLnw",
   authDomain: "picu-book.firebaseapp.com",
   projectId: "picu-book",
   storageBucket: "picu-book.firebasestorage.app",
@@ -73,41 +73,49 @@ const messaging = firebase.messaging();
 
 let deferredPrompt = null;
 let swRegistration = null;
+let currentFcmToken = "";
 
 const installBtn = document.getElementById("installBtn");
 const notifyBtn = document.getElementById("notifyBtn");
 const notifyStatus = document.getElementById("notifyStatus");
 const copyTokenBtn = document.getElementById("copyTokenBtn");
-let currentFcmToken = "";
 
 function setNotifyStatus(message, type) {
   notifyStatus.textContent = message || "";
   notifyStatus.className = "status" + (type ? " " + type : "");
 }
 
-async function registerServiceWorker() {
+/* ใช้ Service Worker registration เดิมก่อนเสมอ
+   และ register ใหม่เฉพาะเมื่อยังไม่มีจริง ๆ */
+async function getServiceWorkerRegistration() {
   if (!("serviceWorker" in navigator)) {
     throw new Error("อุปกรณ์นี้ไม่รองรับ Service Worker");
   }
 
-  swRegistration = await navigator.serviceWorker.register("./sw.js", {scope:"./"});
+  let reg = await navigator.serviceWorker.getRegistration("./");
+
+  if (!reg) {
+    reg = await navigator.serviceWorker.register("./sw.js", { scope: "./" });
+  }
+
   await navigator.serviceWorker.ready;
-  return swRegistration;
+  swRegistration = reg;
+  return reg;
 }
 
-window.addEventListener("load", async () => {
-  try {
-    await registerServiceWorker();
-    console.log("PICU NUH PWA service worker ready");
-
-    if (Notification.permission === "granted") {
-      notifyBtn.textContent = "🔔 ตรวจสอบการแจ้งเตือน";
-      setNotifyStatus("อนุญาตการแจ้งเตือนแล้ว", "ok");
-    }
-  } catch (err) {
-    console.error("PWA service worker error", err);
-    setNotifyStatus("Service Worker ไม่พร้อม: " + err.message, "err");
-  }
+/* เตรียม SW หลังหน้าเว็บโหลดเสร็จ แต่ไม่ให้ error นี้ขวางปุ่มแจ้งเตือน */
+window.addEventListener("load", () => {
+  getServiceWorkerRegistration()
+    .then(() => {
+      console.log("PICU NUH PWA service worker ready");
+      if (Notification.permission === "granted") {
+        notifyBtn.textContent = "🔔 ตรวจสอบการแจ้งเตือน";
+        setNotifyStatus("อนุญาตการแจ้งเตือนแล้ว — กดตรวจสอบเพื่อสร้าง Device Token", "ok");
+      }
+    })
+    .catch(err => {
+      console.error("PWA service worker preparation error", err);
+    });
 });
 
 notifyBtn.addEventListener("click", async () => {
@@ -117,10 +125,6 @@ notifyBtn.addEventListener("click", async () => {
   try {
     if (!("Notification" in window)) {
       throw new Error("เบราว์เซอร์นี้ไม่รองรับ Notification");
-    }
-
-    if (!swRegistration) {
-      await registerServiceWorker();
     }
 
     const permission = await Notification.requestPermission();
@@ -133,27 +137,23 @@ notifyBtn.addEventListener("click", async () => {
       );
     }
 
+    const reg = await getServiceWorkerRegistration();
+
     const token = await messaging.getToken({
       vapidKey: VAPID_KEY,
-      serviceWorkerRegistration: swRegistration
+      serviceWorkerRegistration: reg
     });
 
     if (!token) {
       throw new Error("Firebase ยังไม่สามารถสร้าง FCM token ได้");
     }
 
-    /*
-      ขั้นนี้ยังไม่ส่ง token ไป Google Apps Script
-      เพื่อแยกการทดสอบเป็น 2 ระยะ:
-      1) มือถือสร้าง FCM token ได้
-      2) ค่อยเพิ่ม backend สำหรับบันทึก token และส่ง Push
-    */
-    console.log("PICU FCM TOKEN:", token);
     currentFcmToken = token;
-    copyTokenBtn.hidden = false;
+    console.log("PICU FCM TOKEN:", token);
 
+    copyTokenBtn.hidden = false;
     notifyBtn.textContent = "✅ เปิดการแจ้งเตือนแล้ว";
-    setNotifyStatus("เปิดการแจ้งเตือนสำเร็จ — อุปกรณ์นี้สร้าง FCM token ได้แล้ว", "ok");
+    setNotifyStatus("เปิดการแจ้งเตือนสำเร็จ — Device Token พร้อมแล้ว", "ok");
 
   } catch (err) {
     console.error("FCM setup error", err);
@@ -163,7 +163,6 @@ notifyBtn.addEventListener("click", async () => {
   }
 });
 
-
 copyTokenBtn.addEventListener("click", async () => {
   if (!currentFcmToken) {
     setNotifyStatus("ยังไม่มี Device Token กรุณากดเปิด/ตรวจสอบการแจ้งเตือนก่อน", "err");
@@ -172,10 +171,7 @@ copyTokenBtn.addEventListener("click", async () => {
 
   try {
     await navigator.clipboard.writeText(currentFcmToken);
-    copyTokenBtn.textContent = "✅ คัดลอก Token แล้ว";
-    setNotifyStatus("คัดลอก Device Token แล้ว — นำไปวางใน Script Property: FCM_DEVICE_TOKEN", "ok");
   } catch (err) {
-    // fallback สำหรับบาง browser
     const area = document.createElement("textarea");
     area.value = currentFcmToken;
     area.style.position = "fixed";
@@ -185,18 +181,14 @@ copyTokenBtn.addEventListener("click", async () => {
     area.select();
     const ok = document.execCommand("copy");
     document.body.removeChild(area);
-
-    if (!ok) {
-      setNotifyStatus("คัดลอกอัตโนมัติไม่ได้ กรุณาลองเปิดหน้านี้ใน Chrome", "err");
-      return;
-    }
-
-    copyTokenBtn.textContent = "✅ คัดลอก Token แล้ว";
-    setNotifyStatus("คัดลอก Device Token แล้ว — นำไปวางใน Script Property: FCM_DEVICE_TOKEN", "ok");
+    if (!ok) throw new Error("คัดลอกอัตโนมัติไม่ได้");
   }
+
+  copyTokenBtn.textContent = "✅ คัดลอก Token แล้ว";
+  setNotifyStatus("คัดลอก Device Token แล้ว — นำไปวางใน Script Property: FCM_DEVICE_TOKEN", "ok");
 });
 
-window.addEventListener("beforeinstallprompt", (event) => {
+window.addEventListener("beforeinstallprompt", event => {
   event.preventDefault();
   deferredPrompt = event;
   installBtn.hidden = false;
