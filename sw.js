@@ -63,7 +63,7 @@ importScripts(
 );
 
 firebase.initializeApp({
-  apiKey: "AIzaSyC-j08I700s-ITpy8ei0fDEZCM-i0wyLnw",
+  apiKey: "AIzaSyC-j08I700S-ITpy8ei0fDEZCM-i0wyLnw",
   authDomain: "picu-book.firebaseapp.com",
   projectId: "picu-book",
   storageBucket: "picu-book.firebasestorage.app",
